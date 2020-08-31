@@ -1,10 +1,9 @@
 import time
+from argparse import ArgumentParser
 from numpy.random import randint
 from numpy import allclose
 import numbits
 
-SIZE_ARRAY = 32767000
-MAX_LOOPS = 100
 
 def one_round(arg_array, arg_nbits, arg_max_loops):
     down_counter = arg_max_loops
@@ -13,7 +12,7 @@ def one_round(arg_array, arg_nbits, arg_max_loops):
         b = numbits.unpack(arg_array, nbits=arg_nbits)
         down_counter -= 1
     et = time.time() - start_time
-    print('try_nbits({}): unpack array_shape={}, loop_count={}, et={:.3f}'
+    print('nbits={}: unpack array_shape={}, loop_count={}, et={:.3f}s'
           .format(arg_nbits, arg_array.shape, arg_max_loops, et))
     down_counter = arg_max_loops
     start_time = time.time()
@@ -22,10 +21,29 @@ def one_round(arg_array, arg_nbits, arg_max_loops):
         down_counter -= 1
     et = time.time() - start_time
     assert allclose(arg_array, c)
-    print('try_nbits({}):   pack array_shape={}, loop_count={}, et={:.3f}'
+    print('nbits={}:   pack array_shape={}, loop_count={}, et={:.3f}s'
           .format(arg_nbits, arg_array.shape, arg_max_loops, et))
 
-a_array = randint(256, size=SIZE_ARRAY, dtype='uint8')
-one_round(a_array, 1, MAX_LOOPS)
-one_round(a_array, 2, MAX_LOOPS)
-one_round(a_array, 4, MAX_LOOPS)
+
+def main(args=None):
+    p = ArgumentParser(description='Merge DATs & LOGs after turboSETI.')
+    p.add_argument('array_size', type=int, help='Size of array (E.g. frequency array).')
+    p.add_argument('max_loops', type=int, help='Maximum number of loops (E.g. number of samples).')
+    
+    if args is None:
+        args = p.parse_args()
+    else:
+        args = p.parse_args(args)
+
+    a_array = randint(256, size=args.array_size, dtype='uint8')
+
+    t1 = time.time()
+    one_round(a_array, 1, args.max_loops)
+    one_round(a_array, 2, args.max_loops)
+    one_round(a_array, 4, args.max_loops)
+    et = time.time() - t1
+    print('Elapsed run time: {}s'.format(et))
+
+
+if __name__ == '__main__':
+    main()
