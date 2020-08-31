@@ -32,27 +32,28 @@ py::array_t<uint8_t> unpack(py::array_t<uint8_t> inarray,
   uint8_t *indata  = (uint8_t *) inbuf.ptr;
   uint8_t *outdata = (uint8_t *) outbuf.ptr;
 
-  int ii,jj;
+  int ii,jj,ii8;
   switch(nbits){
   case 1:
     for(ii=0;ii<nbytes;ii++){
+      ii8 = ii<<3; // *8
       for(jj=0;jj<8;jj++){
-	outdata[(ii*8)+jj] = (indata[ii]>>jj)&1;
+	    outdata[ii8+jj] = (indata[ii]>>jj)&1;
       }
     }
     break;
   case 2:
     for(ii=0;ii<nbytes;ii++){
-      outdata[(ii*4)+3] = indata[ii] & LO2BITS;
-      outdata[(ii*4)+2] = (indata[ii] & LOMED2BITS) >> 2;
-      outdata[(ii*4)+1] = (indata[ii] & UPMED2BITS) >> 4;
-      outdata[(ii*4)+0] = (indata[ii] & HI2BITS) >> 6;
+      outdata[(ii<<2)+3] = indata[ii] & LO2BITS;
+      outdata[(ii<<2)+2] = (indata[ii] & LOMED2BITS) >> 2;
+      outdata[(ii<<2)+1] = (indata[ii] & UPMED2BITS) >> 4;
+      outdata[(ii<<2)] = (indata[ii] & HI2BITS) >> 6;
     }
     break;
   case 4:
     for(ii=0;ii<nbytes;ii++){
-      outdata[(ii*2)+1] = indata[ii] & LO4BITS;
-      outdata[(ii*2)+0] = (indata[ii] & HI4BITS) >> 4;
+      outdata[(ii<<1)+1] = indata[ii] & LO4BITS;
+      outdata[(ii<<1)] = (indata[ii] & HI4BITS) >> 4;
     }
     break;
   }
@@ -81,7 +82,7 @@ py::array_t<uint8_t> pack(py::array_t<uint8_t> inarray, int nbits)
   switch(nbits){
   case 1:
     for(ii=0;ii<nbytes/bitfact;ii++){
-      pos = ii*8;
+      pos = ii<<3; // *8
       val = (indata[pos+7]<<7) |
         (indata[pos+6]<<6) |
         (indata[pos+5]<<5) |
@@ -89,13 +90,13 @@ py::array_t<uint8_t> pack(py::array_t<uint8_t> inarray, int nbits)
         (indata[pos+3]<<3) |
         (indata[pos+2]<<2) |
         (indata[pos+1]<<1) |
-        indata[pos+0];
+        indata[pos];
       outdata[ii] = val;
     }
     break;
   case 2:
     for(ii=0;ii<nbytes/bitfact;ii++){
-      pos = ii*4;
+      pos = ii<<2; // *4
       val = (indata[pos]<<6) |
         (indata[pos+1]<<4) |
         (indata[pos+2]<<2) |
@@ -105,7 +106,7 @@ py::array_t<uint8_t> pack(py::array_t<uint8_t> inarray, int nbits)
     break;
   case 4:
     for(ii=0;ii<nbytes/bitfact;ii++){
-      pos = ii*2;
+      pos = ii<<1; // *2
       val = (indata[pos]<<4) | indata[pos+1];
       outdata[ii] = val;
     }
