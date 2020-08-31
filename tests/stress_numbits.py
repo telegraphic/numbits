@@ -26,7 +26,7 @@ def one_round(arg_array, arg_nbits, arg_max_loops):
 
 
 def main(args=None):
-    p = ArgumentParser(description='Measure the performance of numbits.')
+    p = ArgumentParser(description='Merge DATs & LOGs after turboSETI.')
     p.add_argument('array_size', type=int, help='Size of array (E.g. frequency array).')
     p.add_argument('max_loops', type=int, help='Maximum number of loops (E.g. number of samples).')
     
@@ -42,7 +42,7 @@ def main(args=None):
     one_round(a_array, 2, args.max_loops)
     one_round(a_array, 4, args.max_loops)
     et = time.time() - t1
-    print('Elapsed run time: {}s'.format(et))
+    print('Elapsed run time: {:.3f}s'.format(et))
 
 
 if __name__ == '__main__':
