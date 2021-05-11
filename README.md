@@ -51,8 +51,8 @@ import numbits
 a = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype='uint8')
 b = numbits.unpack(a, nbits=2)
 
->> b
->> array([0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 2, 0, 0, 1, 3, 0, 0, 2, 0], dtype=uint8)
+>>> array([0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 1, 0, 0, 0,
+           1, 1, 0, 0, 1, 2, 0, 0, 1, 3, 0, 0, 2, 0], dtype=uint8)
 ```
 
 [tests]: https://github.com/astrogewgaw/numbits/actions/workflows/tests.yaml/badge.svg
