@@ -45,18 +45,14 @@ or you can:
 
 ### Test call
 
-```ipython
-In [1]: import numpy as np
-   ...: import numbits
-   ...: a = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype='uint8')
-   ...: b = numbits.unpack(a, nbits=2)
+```python
+import numpy as np
+import numbits
+a = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype='uint8')
+b = numbits.unpack(a, nbits=2)
 
-In [2]: a
-Out[2]: array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=uint8)
-
-In [3]: b
-Out[3]: 
-array([0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 2, 0, 0, 1, 3, 0, 0, 2, 0], dtype=uint8)
+>> b
+>> array([0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 2, 0, 0, 1, 3, 0, 0, 2, 0], dtype=uint8)
 ```
 
 [tests]: https://github.com/astrogewgaw/numbits/actions/workflows/tests.yaml/badge.svg
