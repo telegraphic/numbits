@@ -1,7 +1,6 @@
 # numbits
 
 ![Tests][tests]
-[![Coverage Status][coveralls-badge]][coveralls]
 
 ## Pack and unpack 1, 2 and 4 bit data to/from 8-bit numpy arrays
 
@@ -56,7 +55,5 @@ b = numbits.unpack(a, nbits=2)
 ```
 
 [tests]: https://github.com/astrogewgaw/numbits/actions/workflows/tests.yaml/badge.svg
-[coveralls]: https://coveralls.io/github/astrogewgaw/numbits?branch=feature
-[coveralls-badge]: https://coveralls.io/repos/github/astrogewgaw/numbits/badge.svg?branch=feature
 [pybind]: https://github.com/pybind/pybind11
 [sigpyproc]: https://github.com/FRBs/sigpyproc3
