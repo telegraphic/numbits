@@ -1,18 +1,46 @@
-## numbits
+# numbits
 
-Pack and unpack 1, 2 and 4 bit data to/from 8-bit numpy arrays. Motivated by radio astronomy, 
-where low bitwidths are common. 
+![Tests][tests]
 
-Project built with [pybind11](https://github.com/pybind/pybind11). Pack/unpack code based
-on [sigpyproc](https://github.com/FRBs/sigpyproc3).
+## Pack and unpack 1, 2 and 4 bit data to/from 8-bit numpy arrays
 
-### Installation
+Motivated by radio astronomy, where low bitwidths are common.
 
-**On Unix (Linux, OS X)**
+Project built with [**pybind11**][pybind]. Pack/unpack code based on [**sigpyproc**][sigpyproc].
 
- - clone this repository
- - `python setup.py build_ext -i` to build shared object .so locally, or
- - `python setup.py install` to install globally
+## Installation
+
+### On Unix (Linux, OS X)
+
+You can either:
+
+* Install numbits from PyPI with:
+
+    ```bash
+    pip install numbits
+    ```
+
+or you can:
+
+* Clone this repository. and then:
+  
+  * Build shared object .so locally, using:
+
+    ```bash
+    python setup.py build_ext -i
+    ```
+
+  * Or install the package globally, using:
+
+    ```bash
+    python -m pip install .
+    ```
+
+    or:
+
+    ```bash
+    python setup.py install
+    ```
 
 ### Test call
 
@@ -24,5 +52,8 @@ b = numbits.unpack(a, nbits=2)
 
 >>> array([0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 1, 0, 0, 0,
            1, 1, 0, 0, 1, 2, 0, 0, 1, 3, 0, 0, 2, 0], dtype=uint8)
-
 ```
+
+[tests]: https://github.com/astrogewgaw/numbits/actions/workflows/tests.yaml/badge.svg
+[pybind]: https://github.com/pybind/pybind11
+[sigpyproc]: https://github.com/FRBs/sigpyproc3
