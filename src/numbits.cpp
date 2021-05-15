@@ -230,7 +230,7 @@ py::array_t<uint8_t> requant_ci8_cu2(py::array_t<int8_t> input) {
 
 PYBIND11_MODULE(numbits, m) {
     m.doc() = "Pack and unpack 1, 2 and 4 bit data"; // optional module docstring
-    m.def("unpack", &unpack, "Unpack 1, 2 and 4 bit data into an 8-bit numpy array",
+    m.def("unpack", &unpack, "Unpack 1, 2 and 4 bit data (unsigned) into an 8-bit numpy array",
           py::arg("inarray"), py::arg("nbits"));
         py::arg("nbits"),
     m.def("pack", &pack, "Pack 1, 2 and 4 bit data into an 8-bit numpy array",
