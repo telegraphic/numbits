@@ -124,7 +124,26 @@ py::array_t<uint8_t> pack(py::array_t<uint8_t> inarray, int nbits)
   return outarray;
 }
 
-/* Function to rescale from complex 8-bit to 2-bit */
+/* Function to rescale from complex 8-bit to 2-bit
+
+Take input data, rescale by stdev, and then optimally
+requantize using the method in
+
+VLBA Correlator Memo 75: TWO-BIT CORRELATORS: MISCELLANEOUS RESULTS
+Fred Schwab, November 19, 1986
+
+The step function q(x) has values +/-1 and +/- N:
+
+       { + N, for x > a
+       | + 1, for 0 < x < a
+q(x) = | - 1, for -a < x < 0
+       { - N, for x < -a
+
+The optimal values are N = 3.3358750 and a = 0.98159883.
+With these values, for noise-like signals the correlator efficiency
+is approx ~0.8825.
+
+*/
 py::array_t<uint8_t> requant_ci8_cu2(py::array_t<int8_t> input) {
     // Setup pointers and buffers to access data in ndarray
     py::buffer_info buf = input.request();
@@ -211,7 +230,6 @@ py::array_t<uint8_t> requant_ci8_cu2(py::array_t<int8_t> input) {
 
 PYBIND11_MODULE(numbits, m) {
     m.doc() = "Pack and unpack 1, 2 and 4 bit data"; // optional module docstring
-
     m.def("unpack", &unpack, "Unpack 1, 2 and 4 bit data into an 8-bit numpy array",
           py::arg("inarray"), py::arg("nbits"));
         py::arg("nbits"),
