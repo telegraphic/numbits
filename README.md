@@ -54,6 +54,6 @@ b = numbits.unpack(a, nbits=2)
            1, 1, 0, 0, 1, 2, 0, 0, 1, 3, 0, 0, 2, 0], dtype=uint8)
 ```
 
-[tests]: https://github.com/astrogewgaw/numbits/actions/workflows/tests.yaml/badge.svg
+[tests]: https://github.com/telegraphic/numbits/actions/workflows/tests.yaml/badge.svg
 [pybind]: https://github.com/pybind/pybind11
 [sigpyproc]: https://github.com/FRBs/sigpyproc3
