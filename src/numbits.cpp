@@ -41,7 +41,7 @@ py::array_t<uint8_t> unpack(py::array_t<uint8_t> inarray, int nbits)
     {
       for (jj = 0; jj < 8; jj++)
       {
-        outdata[(ii * 8) + jj] = (indata[ii] >> jj) & 1;
+        outdata[(ii * 8) + (7 - jj)] = (indata[ii] >> jj) & 1;
       }
     }
     break;
@@ -90,14 +90,14 @@ py::array_t<uint8_t> pack(py::array_t<uint8_t> inarray, int nbits)
     for (ii = 0; ii < nbytes / bitfact; ii++)
     {
       pos = ii * 8;
-      val = (indata[pos + 7] << 7) |
-            (indata[pos + 6] << 6) |
-            (indata[pos + 5] << 5) |
-            (indata[pos + 4] << 4) |
-            (indata[pos + 3] << 3) |
-            (indata[pos + 2] << 2) |
-            (indata[pos + 1] << 1) |
-            indata[pos + 0];
+      val = (indata[pos + 0] << 7) |
+            (indata[pos + 1] << 6) |
+            (indata[pos + 2] << 5) |
+            (indata[pos + 3] << 4) |
+            (indata[pos + 4] << 3) |
+            (indata[pos + 5] << 2) |
+            (indata[pos + 6] << 1) |
+            indata[pos + 7];
       outdata[ii] = val;
     }
     break;
