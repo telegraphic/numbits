@@ -14,3 +14,4 @@ __pycache__
 *.so
 *.egg
 *.egg-info
+.DS_Store
