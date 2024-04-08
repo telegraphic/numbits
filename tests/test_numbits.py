@@ -1,47 +1,179 @@
-import numbits
 import pytest
+import numbits
 import numpy as np
 
+
+def unpack_bits(arr: np.ndarray, nbits: int, bitorder: str = "big") -> np.ndarray:
+    assert arr.dtype == np.uint8
+    assert nbits in {1, 2, 4}
+
+    mask = (1 << nbits) - 1
+    shifts = np.arange(0, 8, nbits)
+    if bitorder == "big":
+        shifts = shifts[::-1]
+    unpacked = (arr[..., np.newaxis] >> shifts) & mask
+    return unpacked.reshape(-1).astype(np.uint8)
+
+
+def pack_bits(arr: np.ndarray, nbits: int, bitorder: str = "big") -> np.ndarray:
+    assert arr.dtype == np.uint8
+    assert nbits in {1, 2, 4}
+
+    packed = np.zeros(arr.size * nbits // 8, dtype=np.uint8)
+    shifts = np.arange(0, 8, nbits)
+    if bitorder == "big":
+        shifts = shifts[::-1]
+    for ishift, shift in enumerate(shifts):
+        packed |= arr[ishift :: 8 // nbits] << shift
+
+    return packed
+
+
 class Testnumbits(object):
-    def test_unpackbits(self):
-        input_arr = np.array([0, 2, 7, 23], dtype=np.uint8)
-        expected_bit1 = np.unpackbits(input_arr, bitorder="big")
-        expected_bit2 = np.array(
-            [0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 1, 3, 0, 1, 1, 3], dtype=np.uint8
+    @pytest.mark.parametrize("nbits", [1, 2, 4])
+    @pytest.mark.parametrize("bitorder", ["big", "little"])
+    @pytest.mark.parametrize("parallel", [False, True])
+    def test_unpack(self, nbits, bitorder, parallel):
+        rng = np.random.default_rng()
+        arr = rng.integers(255, size=2**10, dtype=np.uint8)
+        expected = unpack_bits(arr, nbits, bitorder)
+        output = numbits.unpack(arr, nbits=nbits, bitorder=bitorder, parallel=parallel)
+        np.testing.assert_array_equal(output, expected)
+
+    @pytest.mark.parametrize("bitorder", ["big", "little"])
+    @pytest.mark.parametrize("parallel", [False, True])
+    def test_unpack_invalid(self, bitorder, parallel):
+        arr = np.arange(255, dtype=np.uint8)
+        with pytest.raises(ValueError):
+            numbits.unpack(arr, nbits=3, bitorder=bitorder, parallel=parallel)
+
+    @pytest.mark.parametrize("nbits", [1, 2, 4])
+    @pytest.mark.parametrize("bitorder", ["big", "little"])
+    @pytest.mark.parametrize("parallel", [False, True])
+    def test_unpack_empty(self, nbits, bitorder, parallel):
+        arr = np.empty((0,), dtype=np.uint8)
+        output = numbits.unpack(arr, nbits=nbits, bitorder=bitorder, parallel=parallel)
+        np.testing.assert_array_equal(output, arr)
+
+    @pytest.mark.parametrize("nbits", [1, 2, 4])
+    @pytest.mark.parametrize("bitorder", ["big", "little"])
+    @pytest.mark.parametrize("parallel", [False, True])
+    def test_unpack_buffered(self, nbits, bitorder, parallel):
+        rng = np.random.default_rng()
+        arr = rng.integers(255, size=2**10, dtype=np.uint8)
+        expected = unpack_bits(arr, nbits, bitorder)
+        output = np.zeros(arr.size * 8 // nbits, dtype=np.uint8)
+        numbits.unpack_buffered(
+            arr, output, nbits=nbits, bitorder=bitorder, parallel=parallel
         )
-        expected_bit4 = np.array([0, 0, 0, 2, 0, 7, 1, 7], dtype=np.uint8)
-        np.testing.assert_array_equal(expected_bit1, numbits.unpack(input_arr, nbits=1))
-        np.testing.assert_array_equal(expected_bit2, numbits.unpack(input_arr, nbits=2))
-        np.testing.assert_array_equal(expected_bit4, numbits.unpack(input_arr, nbits=4))
+        np.testing.assert_array_equal(output, expected)
+
+    @pytest.mark.parametrize("bitorder", ["big", "little"])
+    @pytest.mark.parametrize("parallel", [False, True])
+    def test_unpack_buffered_invalid(self, bitorder, parallel):
+        arr = np.arange(255, dtype=np.uint8)
+        output = np.zeros(arr.size * 8 // 3, dtype=np.uint8)
+        with pytest.raises(ValueError):
+            numbits.unpack_buffered(
+                arr, output, nbits=3, bitorder=bitorder, parallel=parallel
+            )
 
     @pytest.mark.parametrize("nbits", [1, 2, 4])
-    def test_unpackbits_empty(self, nbits):
-        input_arr = np.empty((0,), dtype=np.uint8)
-        output = numbits.unpack(input_arr, nbits=nbits)
-        np.testing.assert_array_equal(input_arr, output)
+    @pytest.mark.parametrize("bitorder", ["big", "little"])
+    @pytest.mark.parametrize("parallel", [False, True])
+    def test_unpack_buffered_empty(self, nbits, bitorder, parallel):
+        arr = np.empty((0,), dtype=np.uint8)
+        output = np.empty((0,), dtype=np.uint8)
+        numbits.unpack_buffered(
+            arr, output, nbits=nbits, bitorder=bitorder, parallel=parallel
+        )
+        np.testing.assert_array_equal(output, arr)
 
     @pytest.mark.parametrize("nbits", [1, 2, 4])
-    def test_packbits(self, nbits):
-        input_arr = np.arange(255, dtype=np.uint8)
-        output = numbits.pack(numbits.unpack(input_arr, nbits=nbits), nbits=nbits)
-        np.testing.assert_array_equal(input_arr, output)
+    @pytest.mark.parametrize("bitorder", ["big", "little"])
+    @pytest.mark.parametrize("parallel", [False, True])
+    def test_pack(self, nbits, bitorder, parallel):
+        rng = np.random.default_rng()
+        arr = rng.integers(255, size=2**10, dtype=np.uint8)
+        expected = pack_bits(arr, nbits, bitorder)
+        output = numbits.pack(arr, nbits=nbits, bitorder=bitorder, parallel=parallel)
+        np.testing.assert_array_equal(output, expected)
 
-def test_numbits():
+    @pytest.mark.parametrize("bitorder", ["big", "little"])
+    @pytest.mark.parametrize("parallel", [False, True])
+    def test_pack_invalid(self, bitorder, parallel):
+        arr = np.arange(255, dtype=np.uint8)
+        with pytest.raises(ValueError):
+            numbits.pack(arr, nbits=3, bitorder=bitorder, parallel=parallel)
 
-    """
-    Test the pack and unpack functions from the numbits package.
-    """
+    @pytest.mark.parametrize("nbits", [1, 2, 4])
+    @pytest.mark.parametrize("bitorder", ["big", "little"])
+    @pytest.mark.parametrize("parallel", [False, True])
+    def test_pack_empty(self, nbits, bitorder, parallel):
+        arr = np.empty((0,), dtype=np.uint8)
+        output = numbits.pack(arr, nbits=nbits, bitorder=bitorder, parallel=parallel)
+        np.testing.assert_array_equal(output, arr)
 
-    a = np.arange(255, dtype="uint8")
+    @pytest.mark.parametrize("nbits", [1, 2, 4])
+    @pytest.mark.parametrize("bitorder", ["big", "little"])
+    @pytest.mark.parametrize("parallel", [False, True])
+    def test_pack_buffered(self, nbits, bitorder, parallel):
+        rng = np.random.default_rng()
+        arr = rng.integers(255, size=2**10, dtype=np.uint8)
+        expected = pack_bits(arr, nbits, bitorder)
+        output = np.zeros(arr.size * nbits // 8, dtype=np.uint8)
+        numbits.pack_buffered(
+            arr, output, nbits=nbits, bitorder=bitorder, parallel=parallel
+        )
+        np.testing.assert_array_equal(output, expected)
 
-    b1 = numbits.unpack(a, nbits=1)
-    c1 = numbits.pack(b1, nbits=1)
-    np.allclose(a, c1)
+    @pytest.mark.parametrize("bitorder", ["big", "little"])
+    @pytest.mark.parametrize("parallel", [False, True])
+    def test_pack_buffered_invalid(self, bitorder, parallel):
+        arr = np.arange(255, dtype=np.uint8)
+        output = np.zeros(arr.size * 3 // 8, dtype=np.uint8)
+        with pytest.raises(ValueError):
+            numbits.pack_buffered(
+                arr, output, nbits=3, bitorder=bitorder, parallel=parallel
+            )
 
-    b2 = numbits.unpack(a, nbits=2)
-    c2 = numbits.pack(b2, nbits=2)
-    np.allclose(a, c2)
+    @pytest.mark.parametrize("nbits", [1, 2, 4])
+    @pytest.mark.parametrize("bitorder", ["big", "little"])
+    @pytest.mark.parametrize("parallel", [False, True])
+    def test_pack_buffered_empty(self, nbits, bitorder, parallel):
+        arr = np.empty((0,), dtype=np.uint8)
+        output = np.empty((0,), dtype=np.uint8)
+        numbits.pack_buffered(
+            arr, output, nbits=nbits, bitorder=bitorder, parallel=parallel
+        )
+        np.testing.assert_array_equal(output, arr)
 
-    b4 = numbits.unpack(a, nbits=4)
-    c4 = numbits.pack(b4, nbits=4)
-    np.allclose(a, c4)
+    @pytest.mark.parametrize("nbits", [1, 2, 4])
+    @pytest.mark.parametrize("bitorder", ["big", "little"])
+    @pytest.mark.parametrize("parallel", [False, True])
+    def test_pack_unpack(self, nbits, bitorder, parallel):
+        rng = np.random.default_rng()
+        arr = rng.integers(255, size=2**10, dtype=np.uint8)
+        output = numbits.pack(
+            numbits.unpack(arr, nbits=nbits, bitorder=bitorder, parallel=parallel),
+            nbits=nbits,
+            bitorder=bitorder,
+            parallel=parallel,
+        )
+        np.testing.assert_array_equal(output, arr)
+
+    @pytest.mark.parametrize("nbits", [1, 2, 4])
+    @pytest.mark.parametrize("bitorder", ["big", "little"])
+    @pytest.mark.parametrize("parallel", [False, True])
+    def test_pack_unpack_buffered(self, nbits, bitorder, parallel):
+        rng = np.random.default_rng()
+        arr = rng.integers(255, size=2**10, dtype=np.uint8)
+        tmp = np.zeros(arr.size * 8 // nbits, dtype=np.uint8)
+        numbits.unpack_buffered(
+            arr, tmp, nbits=nbits, bitorder=bitorder, parallel=parallel
+        )
+        output = np.zeros_like(arr)
+        numbits.pack_buffered(
+            tmp, output, nbits=nbits, bitorder=bitorder, parallel=parallel
+        )
+        np.testing.assert_array_equal(output, arr)

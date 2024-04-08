@@ -7,7 +7,7 @@ project(
   VERSION ${SKBUILD_PROJECT_VERSION}
   LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
@@ -17,13 +17,18 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG -march=nati
 
 # Find the module development requirements (requires FindPython from 3.17 or
 # scikit-build-core's built-in backport)
-find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
+set(PYBIND11_NEWPYTHON ON)
+find_package(OpenMP)
 find_package(pybind11 CONFIG REQUIRED)
+pybind11_add_module(numbits src/numbits.cpp)
 
-# Add a library using FindPython's tooling (pybind11 also provides a helper like
-# this)
-python_add_library(numbits MODULE src/numbits.cpp)
-target_link_libraries(numbits PRIVATE pybind11::headers)
+target_link_libraries(numbits PRIVATE pybind11::pybind11)
+
+# Check if OpenMP was found
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(numbits PRIVATE OpenMP::OpenMP_CXX)
+    target_compile_definitions(numbits PRIVATE USE_OPENMP)
+endif()
 
 # This is passing in the version as a define just as an example
 target_compile_definitions(numbits PRIVATE VERSION_INFO=${PROJECT_VERSION})
