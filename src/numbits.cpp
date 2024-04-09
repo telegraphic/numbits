@@ -1,5 +1,5 @@
 #include <array>
-#include <cstdint>
+#include <cstddef>
 #include <stdexcept>
 #include <string>
 
@@ -19,15 +19,98 @@ namespace py = pybind11;
 #define LO2BITS 3
 
 /*----------------------------------------------------------------------------*/
+// Lookup table for bit unpacking
+template <size_t NBits, bool BigEndian> struct unpack_lookup_table {
+  static constexpr size_t Size = 256;
+  static constexpr size_t Elements = 8 / NBits;
+  alignas(64) uint8_t data[Size][Elements]{}; // 256 * 8/NBits bytes
 
-template <bool parallel, bool bigEndian>
-void unpack_1bit(const uint8_t *inbuffer, uint8_t *outbuffer, int nbytes) {
-  int ii, jj;
+  constexpr unpack_lookup_table() {
+    for (size_t ii = 0; ii < Size; ii++) {
+      for (size_t jj = 0; jj < Elements; jj++) {
+        if constexpr (BigEndian) {
+          data[ii][Elements - 1 - jj] =
+              (ii >> (jj * NBits)) & ((1 << NBits) - 1);
+        } else {
+          data[ii][jj] = (ii >> (jj * NBits)) & ((1 << NBits) - 1);
+        }
+      }
+    }
+  }
+};
+
+// Compile-time lookup table initialization
+constexpr unpack_lookup_table<1, false> unpack_lookup_table_1bit_little{};
+constexpr unpack_lookup_table<1, true> unpack_lookup_table_1bit_big{};
+constexpr unpack_lookup_table<2, false> unpack_lookup_table_2bit_little{};
+constexpr unpack_lookup_table<2, true> unpack_lookup_table_2bit_big{};
+constexpr unpack_lookup_table<4, false> unpack_lookup_table_4bit_little{};
+constexpr unpack_lookup_table<4, true> unpack_lookup_table_4bit_big{};
+
+template <bool parallel, bool BigEndian>
+void unpack_1bit_lookup(const uint8_t *inbuffer, uint8_t *outbuffer,
+                        size_t nbytes) {
 #ifdef USE_OPENMP
 #pragma omp parallel for if (parallel)
 #endif
-  for (ii = 0; ii < nbytes; ii++) {
-    for (jj = 0; jj < 8; jj++) {
+  for (size_t ii = 0; ii < nbytes; ii++) {
+    if constexpr (BigEndian) {
+      std::copy(&unpack_lookup_table_1bit_big.data[inbuffer[ii]][0],
+                &unpack_lookup_table_1bit_big.data[inbuffer[ii]][8],
+                &outbuffer[ii * 8]);
+    } else {
+      std::copy(&unpack_lookup_table_1bit_little.data[inbuffer[ii]][0],
+                &unpack_lookup_table_1bit_little.data[inbuffer[ii]][8],
+                &outbuffer[ii * 8]);
+    }
+  }
+}
+
+template <bool parallel, bool BigEndian>
+void unpack_2bit_lookup(const uint8_t *inbuffer, uint8_t *outbuffer,
+                        size_t nbytes) {
+#ifdef USE_OPENMP
+#pragma omp parallel for if (parallel)
+#endif
+  for (size_t ii = 0; ii < nbytes; ii++) {
+    if constexpr (BigEndian) {
+      std::copy(&unpack_lookup_table_2bit_big.data[inbuffer[ii]][0],
+                &unpack_lookup_table_2bit_big.data[inbuffer[ii]][4],
+                &outbuffer[ii * 4]);
+    } else {
+      std::copy(&unpack_lookup_table_2bit_little.data[inbuffer[ii]][0],
+                &unpack_lookup_table_2bit_little.data[inbuffer[ii]][4],
+                &outbuffer[ii * 4]);
+    }
+  }
+}
+
+template <bool parallel, bool BigEndian>
+void unpack_4bit_lookup(const uint8_t *inbuffer, uint8_t *outbuffer,
+                        size_t nbytes) {
+#ifdef USE_OPENMP
+#pragma omp parallel for if (parallel)
+#endif
+  for (size_t ii = 0; ii < nbytes; ii++) {
+    if constexpr (BigEndian) {
+      std::copy(&unpack_lookup_table_4bit_big.data[inbuffer[ii]][0],
+                &unpack_lookup_table_4bit_big.data[inbuffer[ii]][2],
+                &outbuffer[ii * 2]);
+    } else {
+      std::copy(&unpack_lookup_table_4bit_little.data[inbuffer[ii]][0],
+                &unpack_lookup_table_4bit_little.data[inbuffer[ii]][2],
+                &outbuffer[ii * 2]);
+    }
+  }
+}
+
+template <bool parallel, bool bigEndian>
+void unpack_1bit(const uint8_t *inbuffer, uint8_t *outbuffer, size_t nbytes) {
+#ifdef USE_OPENMP
+#pragma omp parallel for if (parallel)
+#endif
+  for (size_t ii = 0; ii < nbytes; ii++) {
+    for (size_t jj = 0; jj < 8; jj++) {
       if constexpr (bigEndian) {
         outbuffer[(ii << 3) + (7 - jj)] = (inbuffer[ii] >> jj) & 1;
       } else {
@@ -38,41 +121,11 @@ void unpack_1bit(const uint8_t *inbuffer, uint8_t *outbuffer, int nbytes) {
 }
 
 template <bool parallel, bool bigEndian>
-void unpack_1bit_un(const uint8_t *inbuffer, uint8_t *outbuffer, int nbytes) {
-  int ii;
+void unpack_2bit(const uint8_t *inbuffer, uint8_t *outbuffer, size_t nbytes) {
 #ifdef USE_OPENMP
 #pragma omp parallel for if (parallel)
 #endif
-  for (ii = 0; ii < nbytes; ii++) {
-    if constexpr (bigEndian) {
-      outbuffer[(ii << 3) + 7] = inbuffer[ii] & 1;
-      outbuffer[(ii << 3) + 6] = (inbuffer[ii] & 2) >> 1;
-      outbuffer[(ii << 3) + 5] = (inbuffer[ii] & 4) >> 2;
-      outbuffer[(ii << 3) + 4] = (inbuffer[ii] & 8) >> 3;
-      outbuffer[(ii << 3) + 3] = (inbuffer[ii] & 16) >> 4;
-      outbuffer[(ii << 3) + 2] = (inbuffer[ii] & 32) >> 5;
-      outbuffer[(ii << 3) + 1] = (inbuffer[ii] & 64) >> 6;
-      outbuffer[(ii << 3) + 0] = (inbuffer[ii] & 128) >> 7;
-    } else {
-      outbuffer[(ii << 3) + 0] = inbuffer[ii] & 1;
-      outbuffer[(ii << 3) + 1] = (inbuffer[ii] & 2) >> 1;
-      outbuffer[(ii << 3) + 2] = (inbuffer[ii] & 4) >> 2;
-      outbuffer[(ii << 3) + 3] = (inbuffer[ii] & 8) >> 3;
-      outbuffer[(ii << 3) + 4] = (inbuffer[ii] & 16) >> 4;
-      outbuffer[(ii << 3) + 5] = (inbuffer[ii] & 32) >> 5;
-      outbuffer[(ii << 3) + 6] = (inbuffer[ii] & 64) >> 6;
-      outbuffer[(ii << 3) + 7] = (inbuffer[ii] & 128) >> 7;
-    }
-  }
-}
-
-template <bool parallel, bool bigEndian>
-void unpack_2bit(const uint8_t *inbuffer, uint8_t *outbuffer, int nbytes) {
-  int ii;
-#ifdef USE_OPENMP
-#pragma omp parallel for if (parallel)
-#endif
-  for (ii = 0; ii < nbytes; ii++) {
+  for (size_t ii = 0; ii < nbytes; ii++) {
     if constexpr (bigEndian) {
       outbuffer[(ii << 2) + 3] = inbuffer[ii] & LO2BITS;
       outbuffer[(ii << 2) + 2] = (inbuffer[ii] & LOMED2BITS) >> 2;
@@ -88,12 +141,11 @@ void unpack_2bit(const uint8_t *inbuffer, uint8_t *outbuffer, int nbytes) {
 }
 
 template <bool parallel, bool bigEndian>
-void unpack_4bit(const uint8_t *inbuffer, uint8_t *outbuffer, int nbytes) {
-  int ii;
+void unpack_4bit(const uint8_t *inbuffer, uint8_t *outbuffer, size_t nbytes) {
 #ifdef USE_OPENMP
 #pragma omp parallel for if (parallel)
 #endif
-  for (ii = 0; ii < nbytes; ii++) {
+  for (size_t ii = 0; ii < nbytes; ii++) {
     if constexpr (bigEndian) {
       outbuffer[(ii << 1) + 1] = inbuffer[ii] & LO4BITS;
       outbuffer[(ii << 1) + 0] = (inbuffer[ii] & HI4BITS) >> 4;
@@ -105,14 +157,13 @@ void unpack_4bit(const uint8_t *inbuffer, uint8_t *outbuffer, int nbytes) {
 }
 
 template <bool parallel, bool bigEndian>
-void pack_1bit(const uint8_t *inbuffer, uint8_t *outbuffer, int nbytes) {
-  int ii, pos;
-  const int bitfact = 8;
+void pack_1bit(const uint8_t *inbuffer, uint8_t *outbuffer, size_t nbytes) {
+  size_t pos;
 #ifdef USE_OPENMP
 #pragma omp parallel for if (parallel)
 #endif
-  for (ii = 0; ii < nbytes / bitfact; ii++) {
-    pos = ii * bitfact;
+  for (size_t ii = 0; ii < nbytes / 8; ii++) {
+    pos = ii * 8;
     if constexpr (bigEndian) {
       outbuffer[ii] = (inbuffer[pos + 0] << 7) | (inbuffer[pos + 1] << 6) |
                       (inbuffer[pos + 2] << 5) | (inbuffer[pos + 3] << 4) |
@@ -128,14 +179,13 @@ void pack_1bit(const uint8_t *inbuffer, uint8_t *outbuffer, int nbytes) {
 }
 
 template <bool parallel, bool bigEndian>
-void pack_2bit(const uint8_t *inbuffer, uint8_t *outbuffer, int nbytes) {
-  int ii, pos;
-  const int bitfact = 4;
+void pack_2bit(const uint8_t *inbuffer, uint8_t *outbuffer, size_t nbytes) {
+  size_t pos;
 #ifdef USE_OPENMP
 #pragma omp parallel for if (parallel)
 #endif
-  for (ii = 0; ii < nbytes / bitfact; ii++) {
-    pos = ii * bitfact;
+  for (size_t ii = 0; ii < nbytes / 4; ii++) {
+    pos = ii * 4;
     if constexpr (bigEndian) {
       outbuffer[ii] = (inbuffer[pos + 0] << 6) | (inbuffer[pos + 1] << 4) |
                       (inbuffer[pos + 2] << 2) | inbuffer[pos + 3];
@@ -147,14 +197,13 @@ void pack_2bit(const uint8_t *inbuffer, uint8_t *outbuffer, int nbytes) {
 }
 
 template <bool parallel, bool bigEndian>
-void pack_4bit(const uint8_t *inbuffer, uint8_t *outbuffer, int nbytes) {
-  int ii, pos;
-  const int bitfact = 2;
+void pack_4bit(const uint8_t *inbuffer, uint8_t *outbuffer, size_t nbytes) {
+  size_t pos;
 #ifdef USE_OPENMP
 #pragma omp parallel for if (parallel)
 #endif
-  for (ii = 0; ii < nbytes / bitfact; ii++) {
-    pos = ii * bitfact;
+  for (size_t ii = 0; ii < nbytes / 2; ii++) {
+    pos = ii * 2;
     if constexpr (bigEndian) {
       outbuffer[ii] = (inbuffer[pos] << 4) | inbuffer[pos + 1];
     } else {
@@ -163,37 +212,59 @@ void pack_4bit(const uint8_t *inbuffer, uint8_t *outbuffer, int nbytes) {
   }
 }
 
-typedef void (*PackUnpackFunc)(const uint8_t *, uint8_t *, int);
+using PackUnpackFunc = void (*)(const uint8_t *, uint8_t *, size_t);
 
-std::array<std::array<std::array<PackUnpackFunc, 2>, 2>, 3> unpackLookup = {
-    {{{
-         {unpack_1bit_un<false, false>, unpack_1bit_un<true, false>}, // 1-bit, little
-         {unpack_1bit_un<false, true>, unpack_1bit_un<true, true>}    // 1-bit, big
-     }},
-     {{
-         {unpack_2bit<false, false>, unpack_2bit<true, false>}, // 2-bit, little
-         {unpack_2bit<false, true>, unpack_2bit<true, true>}    // 2-bit, big
-     }},
-     {{
-         {unpack_4bit<false, false>, unpack_4bit<true, false>}, // 4-bit, little
-         {unpack_4bit<false, true>, unpack_4bit<true, true>}    // 4-bit, big
-     }}}};
+constexpr std::array<std::array<std::array<PackUnpackFunc, 2>, 2>, 3>
+    unpackLookupDispatcher = {{{{
+                                   {unpack_1bit_lookup<false, false>,
+                                    unpack_1bit_lookup<true, false>}, // little
+                                   {unpack_1bit_lookup<false, true>,
+                                    unpack_1bit_lookup<true, true>} // big
+                               }},
+                               {{
+                                   {unpack_2bit_lookup<false, false>,
+                                    unpack_2bit_lookup<true, false>}, // little
+                                   {unpack_2bit_lookup<false, true>,
+                                    unpack_2bit_lookup<true, true>} // big
+                               }},
+                               {{
+                                   {unpack_4bit_lookup<false, false>,
+                                    unpack_4bit_lookup<true, false>}, // little
+                                   {unpack_4bit_lookup<false, true>,
+                                    unpack_4bit_lookup<true, true>} // big
+                               }}}};
 
-std::array<std::array<std::array<PackUnpackFunc, 2>, 2>, 3> packLookup = {
-    {{{
-         {pack_1bit<false, false>, pack_1bit<true, false>}, // 1-bit, little
-         {pack_1bit<false, true>, pack_1bit<true, true>}    // 1-bit, big
-     }},
-     {{
-         {pack_2bit<false, false>, pack_2bit<true, false>}, // 2-bit, little
-         {pack_2bit<false, true>, pack_2bit<true, true>}    // 2-bit, big
-     }},
-     {{
-         {pack_4bit<false, false>, pack_4bit<true, false>}, // 4-bit, little
-         {pack_4bit<false, true>, pack_4bit<true, true>}    // 4-bit, big
-     }}}};
+constexpr std::array<std::array<std::array<PackUnpackFunc, 2>, 2>, 3>
+    unpackDispatcher = {
+        {{{
+             {unpack_1bit<false, false>, unpack_1bit<true, false>}, // little
+             {unpack_1bit<false, true>, unpack_1bit<true, true>}    // big
+         }},
+         {{
+             {unpack_2bit<false, false>, unpack_2bit<true, false>}, // little
+             {unpack_2bit<false, true>, unpack_2bit<true, true>}    // big
+         }},
+         {{
+             {unpack_4bit<false, false>, unpack_4bit<true, false>}, // little
+             {unpack_4bit<false, true>, unpack_4bit<true, true>}    // big
+         }}}};
 
-int get_bitorder_index(const std::string &bitorder) {
+constexpr std::array<std::array<std::array<PackUnpackFunc, 2>, 2>, 3>
+    packDispatcher = {
+        {{{
+             {pack_1bit<false, false>, pack_1bit<true, false>}, // little
+             {pack_1bit<false, true>, pack_1bit<true, true>}    // big
+         }},
+         {{
+             {pack_2bit<false, false>, pack_2bit<true, false>}, // little
+             {pack_2bit<false, true>, pack_2bit<true, true>}    // big
+         }},
+         {{
+             {pack_4bit<false, false>, pack_4bit<true, false>}, // little
+             {pack_4bit<false, true>, pack_4bit<true, true>}    // big
+         }}}};
+
+size_t get_bitorder_index(const std::string &bitorder) {
   if (bitorder.empty() || (bitorder[0] != 'l' && bitorder[0] != 'b')) {
     throw std::invalid_argument(
         "Invalid bitorder. Must begin with 'l' or 'b'.");
@@ -205,20 +276,39 @@ int get_bitorder_index(const std::string &bitorder) {
 Function to unpack 1, 2 and 4 bit data into an 8-bit array.
 */
 py::array_t<uint8_t>
-unpack(const py::array_t<uint8_t, py::array::c_style> &inarray, int nbits,
+unpack_lookup(const py::array_t<uint8_t, py::array::c_style> &inarray,
+              size_t nbits, const std::string &bitorder,
+              bool parallel = false) {
+  if (nbits != 1 && nbits != 2 && nbits != 4) {
+    throw std::invalid_argument(
+        "Invalid number of bits. Supported values are 1, 2, and 4.");
+  }
+  size_t bitorder_idx = get_bitorder_index(bitorder);
+  size_t nbits_idx = nbits >> 1;
+  size_t nbytes = inarray.size();
+  auto outarray = py::array_t<uint8_t>(nbytes * 8 / nbits);
+
+  PackUnpackFunc unpackFunc =
+      unpackLookupDispatcher[nbits_idx][bitorder_idx][parallel ? 1 : 0];
+  unpackFunc(inarray.data(), outarray.mutable_data(), nbytes);
+
+  return outarray;
+}
+
+py::array_t<uint8_t>
+unpack(const py::array_t<uint8_t, py::array::c_style> &inarray, size_t nbits,
        const std::string &bitorder, bool parallel = false) {
   if (nbits != 1 && nbits != 2 && nbits != 4) {
     throw std::invalid_argument(
         "Invalid number of bits. Supported values are 1, 2, and 4.");
   }
-  int bitorder_idx = get_bitorder_index(bitorder);
-  int nbits_idx = nbits >> 1;
-
-  int nbytes = inarray.size();
+  size_t bitorder_idx = get_bitorder_index(bitorder);
+  size_t nbits_idx = nbits >> 1;
+  size_t nbytes = inarray.size();
   auto outarray = py::array_t<uint8_t>(nbytes * 8 / nbits);
 
   PackUnpackFunc unpackFunc =
-      unpackLookup[nbits_idx][bitorder_idx][parallel ? 1 : 0];
+      unpackDispatcher[nbits_idx][bitorder_idx][parallel ? 1 : 0];
   unpackFunc(inarray.data(), outarray.mutable_data(), nbytes);
 
   return outarray;
@@ -226,23 +316,22 @@ unpack(const py::array_t<uint8_t, py::array::c_style> &inarray, int nbits,
 
 void unpack_buffered(const py::array_t<uint8_t, py::array::c_style> &inarray,
                      py::array_t<uint8_t, py::array::c_style> &outarray,
-                     int nbits, const std::string &bitorder,
+                     size_t nbits, const std::string &bitorder,
                      bool parallel = false) {
   if (nbits != 1 && nbits != 2 && nbits != 4) {
     throw std::invalid_argument(
         "Invalid number of bits. Supported values are 1, 2, and 4.");
   }
-  int bitorder_idx = get_bitorder_index(bitorder);
-  int nbits_idx = nbits >> 1;
-
-  int nbytes = inarray.size();
-  int outsize = outarray.size();
+  size_t bitorder_idx = get_bitorder_index(bitorder);
+  size_t nbits_idx = nbits >> 1;
+  size_t nbytes = inarray.size();
+  size_t outsize = outarray.size();
   if (outsize != nbytes * 8 / nbits) {
     throw std::invalid_argument("Output buffer size is not correct.");
   }
 
   PackUnpackFunc unpackFunc =
-      unpackLookup[nbits_idx][bitorder_idx][parallel ? 1 : 0];
+      unpackDispatcher[nbits_idx][bitorder_idx][parallel ? 1 : 0];
   unpackFunc(inarray.data(), outarray.mutable_data(), nbytes);
 }
 
@@ -250,20 +339,19 @@ void unpack_buffered(const py::array_t<uint8_t, py::array::c_style> &inarray,
 Function to pack 1, 2 and 4 bit data into an 8-bit array.
 */
 py::array_t<uint8_t>
-pack(const py::array_t<uint8_t, py::array::c_style> &inarray, int nbits,
+pack(const py::array_t<uint8_t, py::array::c_style> &inarray, size_t nbits,
      const std::string &bitorder, bool parallel = false) {
   if (nbits != 1 && nbits != 2 && nbits != 4) {
     throw std::invalid_argument(
         "Invalid number of bits. Supported values are 1, 2, and 4.");
   }
-  int bitorder_idx = get_bitorder_index(bitorder);
-  int nbits_idx = nbits >> 1;
-
-  int nbytes = inarray.size();
+  size_t bitorder_idx = get_bitorder_index(bitorder);
+  size_t nbits_idx = nbits >> 1;
+  size_t nbytes = inarray.size();
   auto outarray = py::array_t<uint8_t>(nbytes * nbits / 8);
 
   PackUnpackFunc packFunc =
-      packLookup[nbits_idx][bitorder_idx][parallel ? 1 : 0];
+      packDispatcher[nbits_idx][bitorder_idx][parallel ? 1 : 0];
   packFunc(inarray.data(), outarray.mutable_data(), nbytes);
 
   return outarray;
@@ -271,46 +359,51 @@ pack(const py::array_t<uint8_t, py::array::c_style> &inarray, int nbits,
 
 void pack_buffered(const py::array_t<uint8_t, py::array::c_style> &inarray,
                    py::array_t<uint8_t, py::array::c_style> &outarray,
-                   int nbits, const std::string &bitorder,
+                   size_t nbits, const std::string &bitorder,
                    bool parallel = false) {
   if (nbits != 1 && nbits != 2 && nbits != 4) {
     throw std::invalid_argument(
         "Invalid number of bits. Supported values are 1, 2, and 4.");
   }
-  int bitorder_idx = get_bitorder_index(bitorder);
-  int nbits_idx = nbits >> 1;
-
-  int nbytes = inarray.size();
-  int outsize = outarray.size();
+  size_t bitorder_idx = get_bitorder_index(bitorder);
+  size_t nbits_idx = nbits >> 1;
+  size_t nbytes = inarray.size();
+  size_t outsize = outarray.size();
   if (outsize != nbytes * nbits / 8) {
     throw std::invalid_argument("Output buffer size is not correct.");
   }
 
   PackUnpackFunc packFunc =
-      packLookup[nbits_idx][bitorder_idx][parallel ? 1 : 0];
+      packDispatcher[nbits_idx][bitorder_idx][parallel ? 1 : 0];
   packFunc(inarray.data(), outarray.mutable_data(), nbytes);
 }
 
 PYBIND11_MODULE(numbits, m) {
-  // Optional module docstring.
-  m.doc() = "Pack and unpack 1, 2 and 4 bit data";
+  m.doc() = "Pack and unpack 1, 2 and 4 bit data into/from an 8-bit array.";
+
+  m.def(
+      "unpack_lookup", &unpack_lookup,
+      "Unpack 1, 2 and 4-bit data from an 8-bit numpy array using lookup table",
+      py::arg("inarray"), py::arg("nbits"), py::arg("bitorder") = "big",
+      py::arg("parallel") = false);
 
   m.def("unpack", &unpack,
-        "Unpack 1, 2 and 4 bit data into an 8-bit numpy array.",
+        "Unpack 1, 2 and 4-bit data from an 8-bit numpy array",
         py::arg("inarray"), py::arg("nbits"), py::arg("bitorder") = "big",
         py::arg("parallel") = false);
 
   m.def("unpack_buffered", &unpack_buffered,
-        "Unpack bit-packed data into a pre-allocated buffer",
+        "Unpack 1, 2 and 4-bit data from an 8-bit numpy array into a "
+        "pre-allocated buffer",
         py::arg("inarray"), py::arg("outarray"), py::arg("nbits"),
         py::arg("bitorder") = "big", py::arg("parallel") = false);
 
-  m.def("pack", &pack, "Pack 1, 2 and 4 bit data into an 8-bit numpy array.",
+  m.def("pack", &pack, "Pack 1, 2 and 4-bit data into an 8-bit numpy array",
         py::arg("inarray"), py::arg("nbits"), py::arg("bitorder") = "big",
         py::arg("parallel") = false);
 
   m.def("pack_buffered", &pack_buffered,
-        "Pack bit-packed data into a pre-allocated buffer", py::arg("inarray"),
-        py::arg("outarray"), py::arg("nbits"), py::arg("bitorder") = "big",
-        py::arg("parallel") = false);
+        "Pack 1, 2 and 4-bit data into an pre-allocated 8-bit numpy array",
+        py::arg("inarray"), py::arg("outarray"), py::arg("nbits"),
+        py::arg("bitorder") = "big", py::arg("parallel") = false);
 }
