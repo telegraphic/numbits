@@ -17,27 +17,23 @@ import numbits
 def main(test="unpack", bitorder="big", nbits=1):
     if test == "unpack":
         kernels = [
-            lambda arr: numbits.unpack(arr, nbits, parallel=False, bitorder=bitorder),
-            lambda arr: numbits.unpack(arr, nbits, parallel=True, bitorder=bitorder),
-            lambda arr: numbits.unpack_lookup(
+            lambda arr, out: numbits.unpack(
                 arr, nbits, parallel=False, bitorder=bitorder
             ),
-            lambda arr: numbits.unpack_lookup(
+            lambda arr, out: numbits.unpack(
                 arr, nbits, parallel=True, bitorder=bitorder
             ),
-            lambda arr: numbits.unpack_buffered(
-                arr,
-                np.zeros(len(arr) * 8 // nbits, dtype="uint8"),
-                nbits,
-                parallel=False,
-                bitorder=bitorder,
+            lambda arr, out: numbits.unpack_lookup(
+                arr, nbits, parallel=False, bitorder=bitorder
             ),
-            lambda arr: numbits.unpack_buffered(
-                arr,
-                np.zeros(len(arr) * 8 // nbits, dtype="uint8"),
-                nbits,
-                parallel=True,
-                bitorder=bitorder,
+            lambda arr, out: numbits.unpack_lookup(
+                arr, nbits, parallel=True, bitorder=bitorder
+            ),
+            lambda arr, out: numbits.unpack_buffered(
+                arr, out, nbits, parallel=False, bitorder=bitorder
+            ),
+            lambda arr, out: numbits.unpack_buffered(
+                arr, out, nbits, parallel=True, bitorder=bitorder
             ),
         ]
         labels = [
@@ -49,10 +45,13 @@ def main(test="unpack", bitorder="big", nbits=1):
             "numbits_buffered_parallel",
         ]
         if nbits == 1:
-            kernels.insert(0, lambda arr: np.unpackbits(arr, bitorder=bitorder))
+            kernels.insert(0, lambda arr, out: np.unpackbits(arr, bitorder=bitorder))
             labels.insert(0, "numpy")
         bench_stat = perfplot.bench(
-            setup=lambda n: np.random.randint(256, size=n, dtype="uint8"),
+            setup=lambda n: (
+                np.random.randint(256, size=n, dtype="uint8"),
+                np.zeros(n * 8 // nbits, dtype="uint8"),
+            ),
             n_range=[2**k for k in range(0, 24)],
             kernels=kernels,
             labels=labels,
@@ -68,21 +67,15 @@ def main(test="unpack", bitorder="big", nbits=1):
         )
     else:
         kernels = [
-            lambda arr: numbits.pack(arr, nbits, parallel=False, bitorder=bitorder),
-            lambda arr: numbits.pack(arr, nbits, parallel=True, bitorder=bitorder),
-            lambda arr: numbits.pack_buffered(
-                arr,
-                np.zeros(len(arr) * nbits // 8, dtype="uint8"),
-                nbits,
-                parallel=False,
-                bitorder=bitorder,
+            lambda arr, out: numbits.pack(
+                arr, nbits, parallel=False, bitorder=bitorder
             ),
-            lambda arr: numbits.pack_buffered(
-                arr,
-                np.zeros(len(arr) * nbits // 8, dtype="uint8"),
-                nbits,
-                parallel=True,
-                bitorder=bitorder,
+            lambda arr, out: numbits.pack(arr, nbits, parallel=True, bitorder=bitorder),
+            lambda arr, out: numbits.pack_buffered(
+                arr, out, nbits, parallel=False, bitorder=bitorder
+            ),
+            lambda arr, out: numbits.pack_buffered(
+                arr, out, nbits, parallel=True, bitorder=bitorder
             ),
         ]
         labels = [
@@ -92,16 +85,20 @@ def main(test="unpack", bitorder="big", nbits=1):
             "numbits_buffered_parallel",
         ]
         if nbits == 1:
-            kernels.insert(0, lambda arr: np.packbits(arr, bitorder=bitorder))
+            kernels.insert(0, lambda arr, out: np.packbits(arr, bitorder=bitorder))
             labels.insert(0, "numpy")
 
         bench_stat = perfplot.bench(
-            setup=lambda n: np.random.randint((1 << nbits) - 1, size=n, dtype="uint8"),
+            setup=lambda n: (
+                np.random.randint((1 << nbits) - 1, size=n, dtype="uint8"),
+                np.zeros(n * nbits // 8, dtype="uint8"),
+            ),
             n_range=[2**k for k in range(3, 24)],
             kernels=kernels,
             labels=labels,
             xlabel="n",
             title=f"Pack {nbits} bit ({bitorder} endian)",
+            target_time_per_measurement=1,
             equality_check=None,
         )
         bench_stat.save(
