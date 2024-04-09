@@ -1,0 +1,47 @@
+[build-system]
+requires = ["scikit-build-core", "pybind11"]
+build-backend = "scikit_build_core.build"
+
+
+[project]
+name = "numbits"
+version = "0.0.3"
+description="Pack and unpack 1, 2 and 4 bit data to/from 8-bit numpy arrays."
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{ name = "Danny Price", email = "dancpr@berkeley.edu" }]
+requires-python = ">=3.8"
+dependencies = ["numpy"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Astronomy",
+]
+
+[project.urls]
+Github = "https://github.com/telegraphic/numbits"
+
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+
+[tool.scikit-build]
+cmake.build-type = "Release"
+wheel.expand-macos-universal-tags = true
+cmake.verbose = true
+logging.level = "INFO"
+
+
+[tool.cibuildwheel]
+test-command = "python -m pytest {project}/tests -v"
+test-extras = ["test"]
+test-skip = ["pp* *-musllinux* *-manylinux_i686", "*universal2:arm64"]
+build-verbosity = 1
+
+
